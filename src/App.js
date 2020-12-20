@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useEffect, useState } from 'react';
 import s from './App.module.css';
 import Searchbar from './components/Searchbar';
 import ImageGallery from './components/ImageGallery';
@@ -15,122 +15,91 @@ const Status = {
   REJECTED: 'rejected',
 };
 
-class App extends Component {
-  state = {
-    gallery: [],
-    searchQueue: '',
-    page: 1,
-    status: Status.IDLE,
-    error: null,
+export default function App() {
+  const [gallery, setGallery] = useState([]);
+  const [searchQueue, setSearchQueue] = useState(null);
+  const [page, setPage] = useState(0);
+  const [status, setStatus] = useState(Status.IDLE);
+  const [error, setError] = useState(null);
+  const [totalHits, setTotalHits] = useState(null);
+
+  const formSubmitHandler = searchQueue => {
+    setSearchQueue(searchQueue);
+    setPage(1);
+    setGallery([]);
   };
 
-  formSubmitHandler = searchQueue => {
-    this.setState({
-      searchQueue,
-      page: 1,
-    });
+  const loadMoreHandler = () => {
+    setPage(prev => prev + 1);
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    const prevQueue = prevState.searchQueue;
-    const nextQueue = this.state.searchQueue;
-    const page = this.state.page;
-
-    if (prevQueue !== nextQueue) {
-      this.setState({
-        status: Status.PENDING,
-      });
-      Api.fetchImages(nextQueue, page)
-        .then(data => {
-          if (data.total < 1) {
-            return Promise.reject(
-              new Error(`Не удалось найти картинки по запросу ${nextQueue}`),
-            );
-          }
-          this.setState(prevState => {
-            return {
-              gallery: data.hits,
-              status: Status.RESOLVED,
-              page: prevState.page + 1,
-            };
-          });
-        })
-        .catch(error => this.setState({ error, status: Status.REJECTED }));
+  useEffect(() => {
+    if (!searchQueue) {
+      return;
     }
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: 'smooth',
-    });
-  }
-
-  loadMoreHandler = () => {
-    const nextQueue = this.state.searchQueue;
-    const page = this.state.page;
-
-    this.setState({
-      status: Status.PENDING,
-    });
-    Api.fetchImages(nextQueue, page)
+    setStatus(Status.PENDING);
+    Api.fetchImages(searchQueue, page)
       .then(data => {
-        this.setState(prevState => {
-          return {
-            gallery: [...prevState.gallery, ...data.hits],
-            status: Status.RESOLVED,
-            page: prevState.page + 1,
-          };
-        });
+        setTotalHits(data.totalHits);
+        if (data.totalHits < 1) {
+          return Promise.reject(
+            new Error(`Не удалось найти картинки по запросу ${searchQueue}`),
+          );
+        }
+        setGallery(prev => [...prev, ...data.hits]);
+        setStatus(Status.RESOLVED);
       })
-      .catch(error => this.setState({ error, status: Status.REJECTED }));
-  };
+      .catch(error => {
+        setError(error);
+        setStatus(Status.REJECTED);
+      });
+  }, [page, searchQueue]);
 
-  render() {
-    const { status, gallery, error } = this.state;
+  window.scrollTo({
+    top: document.documentElement.scrollHeight,
+    behavior: 'smooth',
+  });
 
-    if (status === 'idle') {
-      return (
-        <div className={s.App}>
-          <Searchbar onSubmit={this.formSubmitHandler} />
-          <div className={s.waiting}>
-            <p> Waiting for queue</p>
-            <img src={waitingImg} alt="waiting" className={s.image} />
-          </div>
+  return (
+    <div className={s.App}>
+      <Searchbar onSubmit={formSubmitHandler} />
+      {/* Вариант №1 */}
+      {(status === Status.IDLE || status === Status.REJECTED) && (
+        <div className={s.waiting}>
+          <p>
+            {(status === Status.IDLE && 'Waiting for queue') ||
+              (status === Status.REJECTED && error.message)}
+          </p>
+          <img
+            src={
+              (status === Status.IDLE && waitingImg) ||
+              (status === Status.REJECTED && errorImg)
+            }
+            alt=""
+            className={s.image}
+          />
         </div>
-      );
-    }
-
-    if (status === 'pending') {
-      return (
-        <div className={s.App}>
-          <Searchbar onSubmit={this.formSubmitHandler} />
+      )}
+      {/* Вариант №2. Какой лучше? */}
+      {/* {status === Status.IDLE && (
+        <div className={s.waiting}>
+          <p> Waiting for queue</p>
+          <img src={waitingImg} alt="waiting" className={s.image} />
+        </div>
+      )}
+      {status === Status.REJECTED && (
+        <div className={s.waiting}>
+          <p>{error.message}</p>
+          <img src={errorImg} alt="error" className={s.image} />
+        </div>
+      )} */}
+      {(status === Status.RESOLVED || status === Status.PENDING) && (
+        <>
           <ImageGallery gallery={gallery} />
-          <Button />
-          <Loader />
-        </div>
-      );
-    }
-
-    if (status === 'rejected') {
-      return (
-        <div className={s.App}>
-          <Searchbar onSubmit={this.formSubmitHandler} />
-          <div className={s.waiting}>
-            <p>{error.message}</p>
-            <img src={errorImg} alt="error" className={s.image} />
-          </div>
-        </div>
-      );
-    }
-
-    if (status === 'resolved') {
-      return (
-        <div className={s.App}>
-          <Searchbar onSubmit={this.formSubmitHandler} />
-          <ImageGallery gallery={gallery} />
-          <Button onClick={this.loadMoreHandler} />
-        </div>
-      );
-    }
-  }
+          {totalHits > gallery.length && <Button onClick={loadMoreHandler} />}
+          {status === Status.PENDING && <Loader />}
+        </>
+      )}
+    </div>
+  );
 }
-
-export default App;

@@ -1,64 +1,44 @@
-import { Component } from 'react';
+import { useEffect, useState } from 'react';
 import s from './Modal.module.css';
 import Loader from 'react-loader-spinner';
 import 'react-loader-spinner/dist/loader/css/react-spinner-loader.css';
 import PropTypes from 'prop-types';
 
-class Modal extends Component {
-  static propTypes = {
-    src: PropTypes.string.isRequired,
-    onClose: PropTypes.func.isRequired,
+export default function Modal({ onClose, src }) {
+  const [loading, setLoading] = useState(false);
+
+  const toggleLoadind = () => {
+    setLoading(prev => !prev);
   };
 
-  state = {
-    loading: false,
-  };
-
-  toggleLoadind() {
-    this.setState(prevState => {
-      return { loading: !prevState.loading };
-    });
-  }
-  backdropHandler = ({ target, currentTarget }) => {
+  const backdropHandler = ({ target, currentTarget }) => {
     if (target === currentTarget) {
-      this.props.onClose();
-    }
-  };
-  componentDidMount() {
-    this.setState({ loading: true });
-    window.addEventListener('keydown', this.handleKeyDown);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('keydown', this.handleKeyDown);
-  }
-
-  handleKeyDown = e => {
-    if (e.code === 'Escape') {
-      this.props.onClose();
+      onClose();
     }
   };
 
-  handleImageLoaded = () => {
-    this.setState({ loading: false });
-  };
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (e.code === 'Escape') {
+        onClose();
+      }
+    };
+    toggleLoadind();
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
-  render() {
-    const { src, alt } = this.props;
-    return (
-      <div className={s.overlay} onClick={this.backdropHandler}>
-        <img
-          className={s.modal}
-          src={src}
-          alt={alt}
-          onLoad={this.handleImageLoaded}
-        />
-        {this.state.loading && (
-          <Loader type="BallTriangle" color="#3f51b5" height={350} />
-        )}
-      </div>
-    );
-  }
+  return (
+    <div className={s.overlay} onClick={backdropHandler}>
+      <img className={s.modal} src={src} alt="" onLoad={toggleLoadind} />
+      {loading && <Loader type="BallTriangle" color="#3f51b5" height={350} />}
+    </div>
+  );
 }
 
-export default Modal;
+Modal.propTypes = {
+  src: PropTypes.string.isRequired,
+  onClose: PropTypes.func.isRequired,
+};
