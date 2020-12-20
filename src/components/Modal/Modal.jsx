@@ -18,6 +18,13 @@ export default function Modal({ onClose, src }) {
   };
 
   useEffect(() => {
+    document.body.style.position = 'fixed';
+    return () => {
+      document.body.style.position = 'relative';
+    };
+  });
+
+  useEffect(() => {
     const handleKeyDown = e => {
       if (e.code === 'Escape') {
         onClose();
